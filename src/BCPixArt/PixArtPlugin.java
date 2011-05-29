@@ -68,7 +68,22 @@ public class PixArtPlugin extends JavaPlugin {
 	public Boolean debug;
 	  public static String pluginMainDir = "./plugins/BC Block Pixel Art";
 	    public static String pluginConfigLocation = pluginMainDir + "/PixArtPlugin.cfg";
-	public static config pluginsettings;
+	private static config pluginsettings;
+	
+	
+	public static config getsettings()
+	{
+		if(pluginsettings==null)
+			{
+			
+			PixArtCommand.debugmessage("getsettings... pluginsettings is null...");
+			
+			}
+		return pluginsettings;
+		
+	}
+	
+	
 	public static String versionheader="BCPixArt Version 0.1";
 	@Override
 	public void onDisable() {

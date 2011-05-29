@@ -45,9 +45,9 @@ public class config implements java.io.Serializable {
 	
 	
 	public Boolean debug;
-	public float XScale,YScale;
 	public String mappingfile="";
-	public long blocksleep=500;
+	public long blocksleep=25;
+	public long blockrowdelay=10;
 	public Hashtable<String,String> preMappedImages;
 	
 	public String getmappedImage(String strparam)
@@ -258,9 +258,10 @@ public class config implements java.io.Serializable {
 		plugin=pluginfill;
 		
 		debug=getBoolean("debug");
-		XScale=getFloat("scaleX",1);
-		YScale=getFloat("scaleY",1);
+		
 		mappingfile=getValue("mappingfile",defmapfile);
+		blocksleep = getLong("blocksleep",25);
+		blockrowdelay=getLong("blockrowdelay",10);
 	}
 	public static void recreatemappingfile()
 	{
@@ -311,19 +312,19 @@ catch(IOException e)
 	    		out.write("#\r\n");
 	    		out.write("#debug messages... probably best to leave this disabled....\r\n");
 	    		out.write("debug=true\r\n");
-	    		out.write("#scaleX and scaleY, default scaling values, negative numbers for either will mean that the other positive coordinate\r\n");
-	    		out.write("#will be used to determine the size for the negative one to preserve aspect ratio.\r\n");
-	    		out.write("scaleX=1.0\r\n");
-	    		out.write("scaleY=1.0\r\n");
-	    		out.write("#Threading: When enabled, building of the pixelart will be performed in a separate thread\r\n");
+	    		out.write("#Threading: When enabled(HIGHLY RECOMMENDED), building of the pixelart will be performed in a separate thread\r\n");
 	    		out.write("#Threading=true\r\n");
 	    		out.write("#if disabled, the main thread will be used. Note that if threading is disabled, trying to build pixel art from");
+	    		out.write("#large images is very likely to crash the server. Also, the entire process of building the image");
+	    		out.write("#will be likely to cause the server to become unresponsive.");
 	    		out.write("#mappingfile: text file containing list of name value pairs to allow shorter entry to the /pixart build command\r\n");
 	    		out.write("#if not found, a new file will be created.");
 	    		out.write("mappingfile=" + defmapfile + "\r\n");
 	    		out.write("#blocksleep: number of milliseconds to sleep between the creation of each block. \r\n");
 	    		out.write("#setting this too low can overload the server; too high and it will take a long time to create the art piece.\r\n");
-	    		out.write("blocksleep=100");
+	    		out.write("blocksleep=25\r\n");
+	    		out.write("#blockrowdelay: additional number of ms to delay after completing a row/column.\r\n");
+	    		out.write("blockrowdelay=10\r\n");
 	    				
 	    				
 	    		

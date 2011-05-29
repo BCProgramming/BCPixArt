@@ -208,8 +208,8 @@ public class PixArtCommand implements CommandExecutor {
 		// new ColorEntryData(new Color(210,180,140),12,0) << Sand
 		public PixArtPlayerData(Player p) {
 			pPlayer = p;
-			this.scaleXPercent= PixArtPlugin.pluginsettings.XScale;
-			this.scaleXPercent= PixArtPlugin.pluginsettings.YScale;
+			this.scaleXPercent= 1;
+			this.scaleXPercent= 1;
 			FlipX=false;
 			FlipY=false;
 			this.canuseURL= PixArtPlugin.hasPermex(pPlayer,"canuseURL");
@@ -362,7 +362,8 @@ public class PixArtCommand implements CommandExecutor {
 			
 		
 		}
-		if(papd.FlipY)
+		//changed: papd.FlipY now has a "reverse" meaning; flipped will actually be the upside down one...
+		if(!papd.FlipY)
 		{
 			
 			pixelY = ImageHeight-pixelY;
@@ -549,7 +550,7 @@ public class PixArtCommand implements CommandExecutor {
 		
 		if(!dataobj.canuseURL && !dataobj.canusePath)
 		{
-			if(!PixArtPlugin.pluginsettings.preMappedImages.containsKey(pstrimage))
+			if(!PixArtPlugin.getsettings().preMappedImages.containsKey(pstrimage))
 			{
 				dataobj.pPlayer.sendMessage("You do not have permissions to use URL or File references.");
 				return null;
@@ -586,7 +587,7 @@ public class PixArtCommand implements CommandExecutor {
 			
 			
 		}
-		strimage = PixArtPlugin.pluginsettings.getmappedImage(strimage);
+		strimage = PixArtPlugin.getsettings().getmappedImage(strimage);
 		try {
 			
 			
@@ -725,7 +726,12 @@ public class PixArtCommand implements CommandExecutor {
 			if (scmd.equalsIgnoreCase("pixart")) {
 				if(args.length==0)
 					showcommandhelp(p);
-				else if (args[args.length-1].equalsIgnoreCase("help")) showcommandhelp(p,args);
+				else if (args[args.length-1].equalsIgnoreCase("help")) 
+					{
+					showcommandhelp(p,args);
+					return true;
+					}
+					
 				BufferedImage img = null;
 				if (args[0].equalsIgnoreCase("calc")) {
 					if (args.length < 2)
@@ -862,7 +868,7 @@ public class PixArtCommand implements CommandExecutor {
 				}
 
 			}
-
+			return true;
 		}
 
 		return false;
@@ -975,12 +981,8 @@ public class PixArtCommand implements CommandExecutor {
 					if (alpha > 0) {
 						setblocktocolor(papa, blockpos, new Color(
 								colourvalue));
-						try {
-							//sleep every single block for the given amount of time. defaults to 500 ms.
-							Thread.sleep(PixArtPlugin.pluginsettings.blocksleep);
-						} catch (InterruptedException e) {
-							//don't care. bloody checked exceptions...
-						}
+						sleepEx(PixArtPlugin.getsettings().blocksleep);
+						
 					} else {
 						//TODO: make configurable?
 					//	blockpos.setType(Material.AIR); // assume
@@ -997,16 +999,30 @@ public class PixArtCommand implements CommandExecutor {
 					// blockpos.setType(usematerial);
 
 				}
-
+				sleepEx(PixArtPlugin.getsettings().blockrowdelay);
 			}
 
 		}
 	}
-
+	private static void sleepEx(long ms)
+	{
+		try {
+			//sleep every single block for the given amount of time. defaults to 500 ms.
+			Thread.sleep(ms);
+		} catch (InterruptedException e) {
+			//don't care. bloody checked exceptions...
+		}
+		
+	}
 	private static void setblocktocolor(PixArtPlayerData pd, Block setblock,
 			Color tocolor) {
 		boolean exceptionoccured=true;
 		int exceptioncount=0;
+		
+		
+		
+		if(setblock.getType().equals(Material.BEDROCK))
+			return; //ignore attempts to replace bedrock...
 		//HACK ALERT: was encountering a NullPointerException deep beneath is within setTypeIdAndData (not my fault I swear).
 		//I suspect it's a race condition. the hack is that it tries 5 times, and sleeps for 100 milliseconds each
 		//time it fails. After 5 times it just gives up and pretends all went well to prevent 
