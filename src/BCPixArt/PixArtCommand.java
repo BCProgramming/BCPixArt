@@ -22,6 +22,7 @@ package BCPixArt;
 import java.awt.Color;
 import java.awt.Image;
 import java.awt.image.BufferedImage;
+import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
 import java.net.MalformedURLException;
@@ -51,7 +52,8 @@ import BCPixArt.FMBlockListener.FMBlockListenerState;
 /**
  * 
  * @author BC_Programming PixArtCommand- CommandExecutor Implementation- handles
- *         everything related to Pixel Art commands.
+ *         everything related to Pixel Art commands. Except for what it doesn't, of course... but that
+ *         goes without saying.
  */
 public class PixArtCommand implements CommandExecutor {
 	// the X coordinate in the image will be the X coord in the world; Y coord
@@ -121,6 +123,7 @@ public class PixArtCommand implements CommandExecutor {
 	 * @author BC_Programming
 	 * what was originally a data class used for storing player specific settings for building, such as orientation,scale, flip, etc
 	 * and has evolved into a utility class that retrieves some of the relevant info itself.
+	 * also for reasons I have yet to fathom some of the command processing is done here as well. Unsolved mysteries...
 	 */
 	public class PixArtPlayerData {
 
@@ -221,20 +224,26 @@ public class PixArtCommand implements CommandExecutor {
 			else if(args[0].equalsIgnoreCase("FlipX"))
 			{
 				if(args.length<2) {
-					p.sendMessage("PIXART: FlipX currently " + FlipX);
+					FlipX=!FlipX;
 					
-					return;
+					
+					
 				}
+				else
+				{
 					FlipX = (Boolean.parseBoolean(args[1]) || args[1].equalsIgnoreCase("yes"));
-					
+				}	
 					
 				p.sendMessage("FlipX set to " + FlipX);
 				
 			}
 			else if(args[0].equalsIgnoreCase("FlipY"))
 			{
-				if(args.length<2) return;
+				if(args.length<2) 
+					FlipY=!FlipY;
+				else
 					FlipY = (Boolean.parseBoolean(args[1]) || args[1].equalsIgnoreCase("yes"));
+					
 				
 				p.sendMessage("FlipY set to " + FlipY);
 			}
@@ -393,7 +402,13 @@ public class PixArtCommand implements CommandExecutor {
 		return mcworld.getBlockAt(X, Y, Z).getLocation();
 
 	}
-
+	/**
+	 * returns the total difference between the two Colors. (that is, the total of the absolute differences between
+	 * each component in the colours)
+	 * @param colorA First Colour
+	 * @param colorB Second Colour
+	 * @return total difference of the components in each colour.
+	 */
 	private static int getcolordiff(Color colorA, Color colorB) {
 		if (colorA == null || colorB == null)
 			return Integer.MAX_VALUE;
@@ -402,7 +417,12 @@ public class PixArtCommand implements CommandExecutor {
 				+ Math.abs(colorB.getBlue() - colorA.getBlue());
 
 	}
-
+	/**
+	 * returns the nearest matching ColorEntryData to a given Color from an Array.
+	 * @param fromcolors Array of ColorEntryData[] objects
+	 * @param colorcheck Color to approximate.
+	 * @return the ColorEntryData object that most closely approximates the given color.
+	 */
 	public static ColorEntryData getnearestcolor(ColorEntryData[] fromcolors,
 			Color colorcheck) {
 
@@ -419,7 +439,8 @@ public class PixArtCommand implements CommandExecutor {
 		return fromcolors[currminindex];
 
 	}
-
+//do we really need to javadoc this? simple overload that calls the above routine with the aggregate EntryColours[] array in 
+	//the PixArtPlayerData class...
 	public static ColorEntryData getnearestcolor(PixArtPlayerData pixdata,
 			Color colorcheck) {
 		return getnearestcolor(pixdata.EntryColours, colorcheck);
@@ -434,7 +455,12 @@ public class PixArtCommand implements CommandExecutor {
 		 * } } return pixdata.EntryColours[currminindex];
 		 */
 	}
-
+/**
+ * returns the PixArtPlayerData for the given player. If there is no entry in the Hashmap for that player,
+ *  a new entry is created and returned.
+ * @param p
+ * @return
+ */
 	public PixArtPlayerData getPlayerPixArtData(Player p) {
 		System.out.println("GetPlayerPixArtData:" + p.getDisplayName());
 
@@ -450,7 +476,12 @@ public class PixArtCommand implements CommandExecutor {
 		return gotvalue;
 
 	}
-
+/**
+ * acquires the total number in a players inventory of a specified Material.
+ * @param inv PlayerInventory to check
+ * @param checkfor Material to check for
+ * @return
+ */
 	public int getTotalCount(PlayerInventory inv, Material checkfor) {
 		int totalamount = 0;
 		for (ItemStack loopstack : inv.all(checkfor).values()) {
@@ -461,7 +492,13 @@ public class PixArtCommand implements CommandExecutor {
 		return totalamount;
 
 	}
-
+	/**
+	 * converts a BlockID and Data to a string. (Currently just showing the BlockID and Data, but could be changed to
+	 * show more descriptive strings...)
+	 * @param BlockID BlockID of the material to retrieve a description for.
+	 * @param BlockData Data of the material to retrieve a description for.
+	 * @return Description of the material.
+	 */
 	private String blockDataToString(int BlockID, int BlockData) {
 
 		return "ID:" + BlockID + " Data:" + BlockData;
@@ -477,15 +514,59 @@ public class PixArtCommand implements CommandExecutor {
 	 */
 	public static BufferedImage loadImage(PixArtPlayerData dataobj, String pstrimage) {
 		
-		String strimage = PixArtPlugin.pluginsettings.getmappedImage(pstrimage);
-		try {
+		//first step: if they aren't allowed URLs or file references, only allow them to use mapped images.
+		String strimage=pstrimage;
+		if(strimage.startsWith("www."))
+		{
+			//prepend strimage...
+			strimage = "http://" + strimage;
 			
-			if(pstrimage.startsWith("www"))
+			
+		}
+		
+		if(!dataobj.canuseURL && !dataobj.canusePath)
+		{
+			if(!PixArtPlugin.pluginsettings.preMappedImages.containsKey(pstrimage))
 			{
+				dataobj.pPlayer.sendMessage("You do not have permissions to use URL or File references.");
+				return null;
 				
+			}
+			
+			
+		}
+		else if(!dataobj.canuseURL)
+		{
+			
+			try {URL geturl = new URL(strimage);
+				dataobj.pPlayer.sendMessage("BCPIXART:You do not have permission to use URLs");
+				
+			
+			}
+			catch(MalformedURLException mue)
+			{
+				//ignore... could be valid... mapped image, or file ref, or something.
+				
+			}
+			
+			
+			
+		}
+		else if(!dataobj.canusePath)
+		{
+			if(new File(strimage).exists())
+			{
+				dataobj.pPlayer.sendMessage("BCPIXART:you do not have permission to use Server File Paths.");
 				
 				
 			}
+			
+			
+		}
+		strimage = PixArtPlugin.pluginsettings.getmappedImage(strimage);
+		try {
+			
+			
 			
 			BufferedImage img = null;
 			URL url = new URL(strimage);
@@ -508,7 +589,7 @@ public class PixArtCommand implements CommandExecutor {
 	}
 	public void showcommandhelp(Player p,String[] args)
 	{
-		String theargument = args[0];
+		String arg = args[0];
 		if(args[0].equalsIgnoreCase("build"))
 		{
 		p.sendMessage(ChatColor.GOLD+ "Build: builds a image.");
@@ -520,8 +601,8 @@ public class PixArtCommand implements CommandExecutor {
 			
 		else if(args[0].equalsIgnoreCase("calc"))
 		{
-			p.sendMessage(ChatColor.GOLD+ "calc: calculates requires resources for an image");
-			p.sendMessage(ChatColor.GOLD+ "syntax: /pixart calc [imagename]");
+			p.sendMessage(ChatColor.GOLD+ "calc: calculates required resources for an image");
+			p.sendMessage(ChatColor.GOLD+ "syntax: /pixart calc <imagename>");
 			p.sendMessage(ChatColor.GOLD+ "[image]: image to calculate. can be a URL, server file path reference, or ");
 			p.sendMessage(ChatColor.GOLD+"one of the mapped names in the mappingfile. Permissions or Op are required for anything");
 			p.sendMessage(ChatColor.GOLD+"results of the calculation are shown. either as either text, or direct ID <damage> values");
@@ -530,11 +611,54 @@ public class PixArtCommand implements CommandExecutor {
 		}
 		else if (args[0].equalsIgnoreCase("ScaleX")||args[0].equalsIgnoreCase("ScaleY"))
 		{
+			p.sendMessage(ChatColor.GOLD + "ScaleX & ScaleY: changes scale factor of built image.");
+			p.sendMessage(ChatColor.GOLD + "syntax: /pixart Scale[X|Y] <value>");
+			p.sendMessage(ChatColor.GOLD + " changes scale for given pixel coordinate. if a negative & positive value is used");
+			p.sendMessage(ChatColor.GOLD + "then the negative value will be changed to match the correct aspect ratio for the other coordinate scale.");
+			
+			
+		}
+		else if(args[0].equalsIgnoreCase("OffsetX")||args[0].equalsIgnoreCase("OffsetY") || args[0].equalsIgnoreCase("OffsetZ"))
+		{
+			p.sendMessage(ChatColor.GOLD + "OffsetX & OffsetY: changes Offset values from player location");
+			p.sendMessage(ChatColor.GOLD + "syntax: /pixart Offset[X|Y|Z] <value> ");
+			p.sendMessage(ChatColor.GOLD + "changes offset for given coordinate (in blocks)");
 			
 			
 			
 		}
-				
+		else if(args[0].equalsIgnoreCase("FlipX") || args[0].equalsIgnoreCase("FlipY"))
+		{
+			p.sendMessage(ChatColor.GOLD + "FlipX & FlipY: flips given coordinate in resulting built image.");
+			p.sendMessage(ChatColor.GOLD + "Syntax: /pixart Flip[X|Y] [true|false]");
+			p.sendMessage(ChatColor.GOLD+"If no parameter value is given, specified coordinate will have it's flip value toggled.");
+			
+			
+		}
+		else if(args[0].equalsIgnoreCase("mode"))
+		{
+			p.sendMessage(ChatColor.GOLD+"mode: changes how X,Y image pixels are mapped to 3-D world space");
+			p.sendMessage(ChatColor.GOLD+"syntax: /pixart mode <mode>");
+			p.sendMessage(ChatColor.GOLD+"where <mode> is one of XY,XZ, YX,YZ,ZX,ZY.");
+			p.sendMessage(ChatColor.GOLD+"the X Coordinate of the image is mapped to the first coordinate in the pair; the Y coordinate to the second.");
+			p.sendMessage(ChatColor.GOLD+"example: XZ will map the image as horizontal, with X in the image being X in the world and Y in the image being Z.");
+			
+			
+		}
+		else if (args[0].equalsIgnoreCase("addcolordata"))
+		{
+			///pixart addcolordata R G B ID DAMAGE
+			p.sendMessage(ChatColor.GOLD+"addcolordata: adds a colour mapping from a specified colour to a material");
+			p.sendMessage(ChatColor.GOLD+"Syntax: /pixart addcolordata " + ChatColor.RED + "<R>" + 
+					ChatColor.GREEN + "<G>" + ChatColor.BLUE "<B>" + ChatColor.GOLD +  "<ID> <DAMAGE>");
+			p.sendMessage(ChatColor.GOLD+ " R,G,B : Colour components of colour to match as the given material.");
+			p.sendMessage(ChatColor.GOLD + "ID, DAMAGE: Material to map.");
+			p.sendMessage(ChatColor.GOLD+" Example: /pixart addcolordata 255 255 255 35 0");
+			p.sendMessage(ChatColor.GOLD+"would map white (RGB 255,255,255) to white wool (ID 35, damage 0)");
+			
+			
+			
+		}
 		
 		
 	}
@@ -827,7 +951,8 @@ public class PixArtCommand implements CommandExecutor {
 						setblocktocolor(papa, blockpos, new Color(
 								colourvalue));
 					} else {
-						blockpos.setType(Material.AIR); // assume
+						//TODO: make configurable?
+					//	blockpos.setType(Material.AIR); // assume
 						// transparent.
 					}
 					// blockpos.setTypeIdAndData(35,
