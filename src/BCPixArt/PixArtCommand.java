@@ -514,8 +514,9 @@ public class PixArtCommand implements CommandExecutor {
 		p.sendMessage(ChatColor.GOLD+ "Build: builds a image.");
 		p.sendMessage(ChatColor.GOLD+ "syntax: /pixart build [image]");
 		p.sendMessage(ChatColor.GOLD+ "[image]: image to build. can be a URL, server file path reference, or ");
-		p.sendMessage(ChatColor.GOLD+"one of the mapped names in the mappingfile. Permissions or Op are required for anything"));
+		p.sendMessage(ChatColor.GOLD+"one of the mapped names in the mappingfile. Permissions or Op are required for anything");
 		p.sendMessage(ChatColor.GOLD+ "but the mapped reference names.");
+		}
 			
 		else if(args[0].equalsIgnoreCase("calc"))
 		{
@@ -533,8 +534,7 @@ public class PixArtCommand implements CommandExecutor {
 			
 			
 		}
-		}
-		
+				
 		
 		
 	}
