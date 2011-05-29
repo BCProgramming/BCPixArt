@@ -235,7 +235,7 @@ public class PixArtPlugin extends JavaPlugin {
 	         
 	         PluginCommand batchcommand = this.getCommand("pixart");
 	         batchcommand.setExecutor(PicArtCListener);
-	         
+	       
 	 
 	
 	

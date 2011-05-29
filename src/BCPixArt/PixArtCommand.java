@@ -125,7 +125,7 @@ public class PixArtCommand implements CommandExecutor {
 	 * and has evolved into a utility class that retrieves some of the relevant info itself.
 	 * also for reasons I have yet to fathom some of the command processing is done here as well. Unsolved mysteries...
 	 */
-	public class PixArtPlayerData {
+	public class PixArtPlayerData implements Cloneable {
 
 		public Player pPlayer;
 		public BuildOrientationConstants BuildOrientation = BuildOrientationConstants.Build_XZ;
@@ -141,9 +141,32 @@ public class PixArtCommand implements CommandExecutor {
 
 		public void setResourceUse(Boolean value) {
 			usePlayerResources = value;
-
+			Cloneable px;
+			
 		}
-
+		@Override
+		public Object clone()
+		{
+			return new PixArtPlayerData(this);
+			
+		
+		}
+		public PixArtPlayerData(PixArtPlayerData clonethis){
+			
+			pPlayer=clonethis.pPlayer;
+			BuildOrientation = clonethis.BuildOrientation;
+			scaleXPercent = clonethis.scaleXPercent;
+			scaleYPercent = clonethis.scaleYPercent;
+			FlipX=clonethis.FlipX;
+			FlipY=clonethis.FlipY;
+			OffsetX = clonethis.OffsetX;
+			OffsetY = clonethis.OffsetY;
+			OffsetZ=clonethis.OffsetZ;
+			canuseURL=clonethis.canuseURL;
+			canusePath=clonethis.canusePath;
+			usePlayerResources=clonethis.usePlayerResources;
+			
+		}
 		public void setResourceUse(String value) {
 
 			if (value.equalsIgnoreCase("yes") || value.equalsIgnoreCase("true")
@@ -698,7 +721,8 @@ public class PixArtCommand implements CommandExecutor {
 			
 			
 			System.out.println(scmd);
-			if (scmd.equals("pixart")) {
+			
+			if (scmd.equalsIgnoreCase("pixart")) {
 				if(args.length==0)
 					showcommandhelp(p);
 				else if (args[args.length-1].equalsIgnoreCase("help")) showcommandhelp(p,args);
@@ -742,7 +766,9 @@ public class PixArtCommand implements CommandExecutor {
 
 					}
 				}
-				if (args[0].equalsIgnoreCase("resuse")) {
+				
+				
+				else if (args[0].equalsIgnoreCase("resuse")) {
 					// set a "property"...
 					// args[1] will be the actual property name. currently
 					// supported properties
@@ -845,7 +871,7 @@ public class PixArtCommand implements CommandExecutor {
 	//private Thread spawnedthread;
 	public void renderImageToBlocksthreaded(String imagestr,Player p, PixArtPlayerData papa,Location startpos,ResourceCalculator resq)
 	{
-		ThreadWork workerthread = new ThreadWork(imagestr,p,papa,startpos,resq);
+		ThreadWork workerthread = new ThreadWork(imagestr,p,(PixArtPlayerData) papa.clone(),startpos,resq);
 		Thread spawnedthread = new Thread(workerthread);
 		spawnedthread.start();
 			

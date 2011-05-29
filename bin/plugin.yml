@@ -1,0 +1,7 @@
+name: BC Block Pixel Art
+main: BCPixArt.PixArtPlugin
+version: 0.1
+commands:
+      pixart:
+        description: builds a image from a URL out of wool blocks
+    

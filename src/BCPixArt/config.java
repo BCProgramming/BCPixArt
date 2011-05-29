@@ -322,8 +322,8 @@ catch(IOException e)
 	    		out.write("#if not found, a new file will be created.");
 	    		out.write("mappingfile=" + defmapfile + "\r\n");
 	    		out.write("#blocksleep: number of milliseconds to sleep between the creation of each block. \r\n");
-	    		out.write("#setting this too low can overload the server; too high and it will take a long time to create the art piece.\r\n")
-	    		out.write("blocksleep=500");
+	    		out.write("#setting this too low can overload the server; too high and it will take a long time to create the art piece.\r\n");
+	    		out.write("blocksleep=100");
 	    				
 	    				
 	    		

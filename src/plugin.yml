@@ -2,9 +2,6 @@ name: BC Block Pixel Art
 main: BCPixArt.PixArtPlugin
 version: 0.1
 commands:
-    fill:
-        description: given no arguments, asks for start and ending corner to fill. use /fill do to perform the fill with the item in your active slot, and /fill mat to change material. /fill mat# can be used to change the materials used.
-        usage: /fill
-    pixart:
+      pixart:
         description: builds a image from a URL out of wool blocks
     
