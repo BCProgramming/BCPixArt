@@ -47,6 +47,7 @@ public class config implements java.io.Serializable {
 	public Boolean debug;
 	public float XScale,YScale;
 	public String mappingfile="";
+	public long blocksleep=500;
 	public Hashtable<String,String> preMappedImages;
 	
 	public String getmappedImage(String strparam)
@@ -320,7 +321,9 @@ catch(IOException e)
 	    		out.write("#mappingfile: text file containing list of name value pairs to allow shorter entry to the /pixart build command\r\n");
 	    		out.write("#if not found, a new file will be created.");
 	    		out.write("mappingfile=" + defmapfile + "\r\n");
-	    		
+	    		out.write("#blocksleep: number of milliseconds to sleep between the creation of each block. \r\n");
+	    		out.write("#setting this too low can overload the server; too high and it will take a long time to create the art piece.\r\n")
+	    		out.write("blocksleep=500");
 	    				
 	    				
 	    		

@@ -650,7 +650,7 @@ public class PixArtCommand implements CommandExecutor {
 			///pixart addcolordata R G B ID DAMAGE
 			p.sendMessage(ChatColor.GOLD+"addcolordata: adds a colour mapping from a specified colour to a material");
 			p.sendMessage(ChatColor.GOLD+"Syntax: /pixart addcolordata " + ChatColor.RED + "<R>" + 
-					ChatColor.GREEN + "<G>" + ChatColor.BLUE "<B>" + ChatColor.GOLD +  "<ID> <DAMAGE>");
+					ChatColor.GREEN + "<G>" + ChatColor.BLUE + "<B>" + ChatColor.GOLD +  "<ID> <DAMAGE>");
 			p.sendMessage(ChatColor.GOLD+ " R,G,B : Colour components of colour to match as the given material.");
 			p.sendMessage(ChatColor.GOLD + "ID, DAMAGE: Material to map.");
 			p.sendMessage(ChatColor.GOLD+" Example: /pixart addcolordata 255 255 255 35 0");
@@ -858,7 +858,7 @@ public class PixArtCommand implements CommandExecutor {
 		BufferedImage img;
 		img = loadImage(papa, imagestr);
 		// img.getScaledInstance(width, height, hints)
-		System.out.println("Image height:" + img.getHeight()
+		debugmessage("Image height:" + img.getHeight()
 				+ " Image width:" + img.getWidth());
 
 		if (img != null) {
@@ -901,7 +901,7 @@ public class PixArtCommand implements CommandExecutor {
 			int py = startpos.getBlockY();
 			int pz = startpos.getBlockZ();
 			int totalblocks=0;
-			System.out.println("player at position X:" + px + " Y:"
+			debugmessage("player at position X:" + px + " Y:"
 					+ py + " Z:" + pz);
 			for (int xpixel = 0; xpixel < img.getWidth(); xpixel++) {
 				// int xpix = xpixel+px;
@@ -909,7 +909,7 @@ public class PixArtCommand implements CommandExecutor {
 					// int ypix = ypixel+py;
 					totalblocks++;
 					if(totalblocks%50==0) try {Thread.sleep(1000);} catch(Exception e){}
-					System.out.println("processing pixel:X:"
+					debugmessage("processing pixel:X:"
 							+ xpixel + " Y:" + ypixel);
 					// use x and z coords. (make it flat)
 
@@ -930,8 +930,7 @@ public class PixArtCommand implements CommandExecutor {
 					// System.out.println("creatingblock at location X="
 					// + xpix + " Y=" + p.getLocation().getBlockY()
 					// + " Z=" + ypix);
-					System.out
-							.println("creatingblock at location X="
+					debugmessage("creatingblock at location X="
 									+ usespot.getBlockX() + " Y="
 									+ usespot.getBlockY() + " Z="
 									+ usespot.getBlockZ());
@@ -950,6 +949,12 @@ public class PixArtCommand implements CommandExecutor {
 					if (alpha > 0) {
 						setblocktocolor(papa, blockpos, new Color(
 								colourvalue));
+						try {
+							//sleep every single block for the given amount of time. defaults to 500 ms.
+							Thread.sleep(PixArtPlugin.pluginsettings.blocksleep);
+						} catch (InterruptedException e) {
+							//don't care. bloody checked exceptions...
+						}
 					} else {
 						//TODO: make configurable?
 					//	blockpos.setType(Material.AIR); // assume
@@ -976,6 +981,10 @@ public class PixArtCommand implements CommandExecutor {
 			Color tocolor) {
 		boolean exceptionoccured=true;
 		int exceptioncount=0;
+		//HACK ALERT: was encountering a NullPointerException deep beneath is within setTypeIdAndData (not my fault I swear).
+		//I suspect it's a race condition. the hack is that it tries 5 times, and sleeps for 100 milliseconds each
+		//time it fails. After 5 times it just gives up and pretends all went well to prevent 
+		//hurting the feelings of the calling routine.
 		while(exceptionoccured && exceptioncount < 5)
 		{
         try {
@@ -987,8 +996,14 @@ public class PixArtCommand implements CommandExecutor {
         {
         	exceptionoccured=true;
         	exceptioncount++;
-        	
-        	
+        	try {
+        	Thread.sleep(100*exceptioncount);
+        	}
+        	catch(InterruptedException exx)
+        	{
+        		//ignore...
+        		
+        	}
         }
 		}
 	}
