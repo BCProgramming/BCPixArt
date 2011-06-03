@@ -64,7 +64,7 @@ public class PixArtPlugin extends JavaPlugin {
 	public final PixArtCommand PicArtCListener = new PixArtCommand(this);
 	
 	public static PermissionHandler Perms;
-	public FillModCommand CListener = new FillModCommand(this);
+	//public FillModCommand CListener = new FillModCommand(this);
 	public Boolean debug;
 	  public static String pluginMainDir = "./plugins/BC Block Pixel Art";
 	    public static String pluginConfigLocation = pluginMainDir + "/PixArtPlugin.cfg";
@@ -88,7 +88,7 @@ public class PixArtPlugin extends JavaPlugin {
 	@Override
 	public void onDisable() {
 		// TODO Auto-generated method stub
-		System.out.print("FillMod Disabled");
+		System.out.print("BCPixArt Disabled");
 	}
 	
 	public static boolean hasAlpha(Image image) {
@@ -220,7 +220,10 @@ public class PixArtPlugin extends JavaPlugin {
 	        	else{
 	        		PixArtCommand.debugmessage("recreating configuration...");
 	        		config.recreateconfig();
-	        		
+	        		//bugfix: now it also loads the config it just made...
+	        		preSettings.load(new FileInputStream(new File(pluginConfigLocation)));
+	        		pluginsettings = new config(preSettings, this);
+	        		debug = pluginsettings.debug;
 	        	}
 	        	
 	        } catch (Exception e) {

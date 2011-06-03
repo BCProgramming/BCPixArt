@@ -150,6 +150,7 @@ public class ResourceCalculator {
 	
 	public Boolean depleteResource(Player p,int itemID,int itemdata,int numused)
 	{
+		PixArtCommand.debugmessage("depleting " + numused + " of (" + itemID + "," + itemdata + ")" + " from " + p.getDisplayName());
 		if(!hasEnough(p,itemID,itemdata,numused))
 			return false;
 		else
@@ -159,7 +160,11 @@ public class ResourceCalculator {
 			for(ItemStack loopitem:gotinventory)
 			{
 				//iterate through each item (duh), create a running total and add each element that is the right ID and itemdata...
-				if(isEquivalent(itemID,itemdata,loopitem.getTypeId(),loopitem.getData().getData()))
+				if(loopitem!=null&&loopitem.getData()!=null)
+						{
+					
+					if(isEquivalent(itemID,itemdata,loopitem.getTypeId(),loopitem.getData().getData()))
+						
 				{
 					
 					if(loopitem.getAmount()> numremaining)
@@ -177,7 +182,8 @@ public class ResourceCalculator {
 				}
 				
 			}
-			
+				
+			}
 			
 			
 			
@@ -221,6 +227,35 @@ public Boolean depleteResources(Player p, ColorEntryData[] thecolors,BufferedIma
 	
 	
 	
+}
+/**
+ * adds the given item to the player's inventory. (used for rollbacks...)
+ * @param p player to receive the inventory item.
+ * @param BlockID blockID of the item to add
+ * @param BlockData blockdata to add.
+ */
+public static void AddItemToPlayerInventory(Player p,int BlockID,byte BlockData)
+{
+	//first look for existing stacks of that item/Data...
+	boolean didincrement=false;
+	ItemStack newstack=new ItemStack(BlockID,BlockData);
+	for(ItemStack loopitem : p.getInventory().all(newstack).values()){
+		//if that item has an amount less than 64...
+		if(loopitem.getAmount()< 64){
+			//increment it. then set the flag and break out of the loop.
+			loopitem.setAmount(loopitem.getAmount()+1);
+			didincrement=true;
+			break;
+		}
+		
+		
+		
+		
+	}
+		
+	//if the flag is still false, then we will add a new item.
+	if(!didincrement)
+		p.getInventory().addItem(newstack);
 }
 	/**
 	 * 
@@ -267,6 +302,7 @@ public Boolean hasResourcesDirect(Player p, ColorEntryData[] thecolors,BufferedI
 	messagebuild.append("requirements not met(ID,Data):");
 	for(int loopit:faileditems)
 	{
+		
 		messagebuild.append(" " + thecolors[loopit].BlockID + " " + thecolors[loopit].BlockData + ",");
 		
 		
@@ -278,7 +314,7 @@ public Boolean hasResourcesDirect(Player p, ColorEntryData[] thecolors,BufferedI
 		
 	
 	
-	
+	p.sendMessage(messagebuild.toString());
 	
 	return false;
 	}

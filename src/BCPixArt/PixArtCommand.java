@@ -22,16 +22,25 @@ package BCPixArt;
 import java.awt.Color;
 import java.awt.Image;
 import java.awt.image.BufferedImage;
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.io.Serializable;
+import java.io.StringWriter;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Hashtable;
+import java.util.Properties;
+import java.util.Stack;
 
 import javax.imageio.ImageIO;
 
 import org.bukkit.ChatColor;
+import org.bukkit.Chunk;
 import org.bukkit.DyeColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -52,8 +61,8 @@ import BCPixArt.FMBlockListener.FMBlockListenerState;
 /**
  * 
  * @author BC_Programming PixArtCommand- CommandExecutor Implementation- handles
- *         everything related to Pixel Art commands. Except for what it doesn't, of course... but that
- *         goes without saying.
+ *         everything related to Pixel Art commands. Except for what it doesn't,
+ *         of course... but that goes without saying.
  */
 public class PixArtCommand implements CommandExecutor {
 	// the X coordinate in the image will be the X coord in the world; Y coord
@@ -118,12 +127,15 @@ public class PixArtCommand implements CommandExecutor {
 		}
 
 	}
+
 	/**
 	 * 
-	 * @author BC_Programming
-	 * what was originally a data class used for storing player specific settings for building, such as orientation,scale, flip, etc
-	 * and has evolved into a utility class that retrieves some of the relevant info itself.
-	 * also for reasons I have yet to fathom some of the command processing is done here as well. Unsolved mysteries...
+	 * @author BC_Programming what was originally a data class used for storing
+	 *         player specific settings for building, such as orientation,scale,
+	 *         flip, etc and has evolved into a utility class that retrieves
+	 *         some of the relevant info itself. also for reasons I have yet to
+	 *         fathom some of the command processing is done here as well.
+	 *         Unsolved mysteries...
 	 */
 	public class PixArtPlayerData implements Cloneable {
 
@@ -131,42 +143,151 @@ public class PixArtCommand implements CommandExecutor {
 		public BuildOrientationConstants BuildOrientation = BuildOrientationConstants.Build_XZ;
 		public float scaleXPercent = 1.0f;
 		public float scaleYPercent = 1.0f;
-		public Boolean FlipX,FlipY;
-		public int OffsetX=0;
-		public int OffsetY=0;
-		public int OffsetZ=0;
+		public Boolean FlipX, FlipY;
+		public int OffsetX = 0;
+		public int OffsetY = 0;
+		public int OffsetZ = 0;
 		public final Boolean canuseURL;
 		public final Boolean canusePath;
+		public Stack<RollbackData> UndoStack = new Stack<RollbackData>();
+		public Stack<RollbackData> RedoStack = new Stack<RollbackData>();
 		private Boolean usePlayerResources = false;
+		public int maxconcurrentdraws = 2;
+		public ArrayList<Thread> genthreads = new ArrayList<Thread>(); 
+		
+		public String datafiledir = PixArtPlugin.pluginMainDir + "/mappings";
+		public String GetPlayerDataFile(String playername){
+			return datafiledir + "/" + playername + ".properties";
+			
+			
+		}
+		public void Save()
+		{
+			//saves this PixArtPlayerData to the appropriate location PixArtPlugin.pluginMainDir +"/mappings/playername.properties"
+			String playerdatafile = GetPlayerDataFile(pPlayer.getDisplayName());
+			if(!new File(playerdatafile).exists())
+			{
+				new File(datafiledir).mkdirs();
+				
+				
+				
+			}
+			//BufferedWriter out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(PixArtPlugin.pluginConfigLocation)));
+			try {
+				FileOutputStream fo = new FileOutputStream(playerdatafile);
+				Properties saveproperties = new Properties();
+				saveproperties.put("BuildOrientation", this.BuildOrientation);
+				saveproperties.put("scaleXPercent",scaleXPercent);
+				saveproperties.put("ScaleYPercent",scaleYPercent);
+				saveproperties.put("FlipX",FlipX);
+				saveproperties.put("FlipY",FlipY);
+				saveproperties.put("OffsetX",OffsetX);
+				saveproperties.put("OffsetY",OffsetY);
+				saveproperties.put("OffsetZ",OffsetZ);
+				saveproperties.put("OffsetZ",OffsetZ);
+				
+				
+			} catch (FileNotFoundException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			
+			
+		}
+		public PixArtPlayerData(String sourcefilename){
+			//loads this PixArtPlayerData from the given source filename.
+			this.canuseURL = PixArtPlugin.hasPermex(pPlayer, "canuseURL");
+			this.canusePath = PixArtPlugin.hasPermex(pPlayer, "canusePath");
+			
+			
+		}
+		// all the threads being used to gen this players pixel art.
+
+		/**
+		 * undoes the last rollbackdata, and adds it to the redo stack.
+		 */
+		public boolean UndoLast() {
+			if (UndoStack.empty()) {
+				return false; // can't undo, nothing to undo...
+			}
+			// pop off the last RollbackData...
+			RollbackData lastitem = UndoStack.pop();
+			// undo it...
+			lastitem.DoRollback(lastitem.getWorld());
+			// push it onto the Redo stack...
+			RedoStack.push(lastitem);
+			return true;
+
+		}
+
+		public boolean RedoLast() {
+			if (RedoStack.empty()) {
+
+				return false;
+
+			}
+			RollbackData redoitem = RedoStack.pop();
+			// redo it.
+			redoitem.DoRollback(redoitem.getWorld());
+
+			UndoStack.push(redoitem);
+			TrimStacks();
+			return true;
+
+		}
+
+		private static final int maxundosize = 5;
+
+		private void TrimStack(Stack<RollbackData> rollstack, int maxsize) {
+			while (rollstack.size() > maxsize) {
+				rollstack.remove(0);
+			}
+
+		}
+
+		/**
+		 * ensures the stack is no larger than the given size by removing older
+		 * elements while it is larger.
+		 */
+		private void TrimStacks() {
+
+			TrimStack(UndoStack, maxundosize);
+			TrimStack(RedoStack, maxundosize);
+
+		}
 
 		public void setResourceUse(Boolean value) {
 			usePlayerResources = value;
 			Cloneable px;
-			
+
 		}
+
 		@Override
-		public Object clone()
-		{
+		public Object clone() {
 			return new PixArtPlayerData(this);
-			
-		
+
 		}
-		public PixArtPlayerData(PixArtPlayerData clonethis){
-			
-			pPlayer=clonethis.pPlayer;
+
+		public PixArtPlayerData(PixArtPlayerData clonethis) {
+
+			pPlayer = clonethis.pPlayer;
 			BuildOrientation = clonethis.BuildOrientation;
 			scaleXPercent = clonethis.scaleXPercent;
 			scaleYPercent = clonethis.scaleYPercent;
-			FlipX=clonethis.FlipX;
-			FlipY=clonethis.FlipY;
+			FlipX = clonethis.FlipX;
+			FlipY = clonethis.FlipY;
 			OffsetX = clonethis.OffsetX;
 			OffsetY = clonethis.OffsetY;
-			OffsetZ=clonethis.OffsetZ;
-			canuseURL=clonethis.canuseURL;
-			canusePath=clonethis.canusePath;
-			usePlayerResources=clonethis.usePlayerResources;
-			
+			OffsetZ = clonethis.OffsetZ;
+			canuseURL = clonethis.canuseURL;
+			canusePath = clonethis.canusePath;
+			usePlayerResources = clonethis.usePlayerResources;
+			UndoStack = clonethis.UndoStack;
+			RedoStack = clonethis.RedoStack;
+			genthreads = clonethis.genthreads;
+
 		}
+
 		public void setResourceUse(String value) {
 
 			if (value.equalsIgnoreCase("yes") || value.equalsIgnoreCase("true")
@@ -208,122 +329,96 @@ public class PixArtCommand implements CommandExecutor {
 		// new ColorEntryData(new Color(210,180,140),12,0) << Sand
 		public PixArtPlayerData(Player p) {
 			pPlayer = p;
-			this.scaleXPercent= 1;
-			this.scaleXPercent= 1;
-			FlipX=false;
-			FlipY=false;
-			this.canuseURL= PixArtPlugin.hasPermex(pPlayer,"canuseURL");
+			this.scaleXPercent = 1;
+			this.scaleXPercent = 1;
+			FlipX = false;
+			FlipY = false;
+			this.canuseURL = PixArtPlugin.hasPermex(pPlayer, "canuseURL");
 			this.canusePath = PixArtPlugin.hasPermex(pPlayer, "canusePath");
-			
+			this.maxconcurrentdraws = 2;
+
 		}
-		public void processArguments(Player p,String[] args)
-		{
-			
-			
-			
-			
-			if(args[0].equalsIgnoreCase("ScaleX"))
-			{
-				if(args.length<2) {
+
+		public void processArguments(Player p, String[] args) {
+
+			if (args[0].equalsIgnoreCase("ScaleX")) {
+				if (args.length < 2) {
 					p.sendMessage("PIXART: ScaleX currently " + scaleXPercent);
-					
+
 					return;
 				}
 				this.scaleXPercent = Float.parseFloat(args[1]);
 				p.sendMessage("XScale set to " + this.scaleXPercent);
-				
-			}
-			else if(args[0].equalsIgnoreCase("ScaleY"))
-			{
-				if(args.length<2) {
+
+			} else if (args[0].equalsIgnoreCase("ScaleY")) {
+				if (args.length < 2) {
 					p.sendMessage("PIXART: ScaleY currently " + scaleYPercent);
-					
+
 					return;
 				}
 				this.scaleYPercent = Float.parseFloat(args[1]);
 				p.sendMessage("YScale set to " + this.scaleYPercent);
-				
-			}
-			else if(args[0].equalsIgnoreCase("FlipX"))
-			{
-				if(args.length<2) {
-					FlipX=!FlipX;
-					
-					
-					
+
+			} else if (args[0].equalsIgnoreCase("FlipX")) {
+				if (args.length < 2) {
+					FlipX = !FlipX;
+
+				} else {
+					FlipX = (Boolean.parseBoolean(args[1]) || args[1]
+							.equalsIgnoreCase("yes"));
 				}
-				else
-				{
-					FlipX = (Boolean.parseBoolean(args[1]) || args[1].equalsIgnoreCase("yes"));
-				}	
-					
+
 				p.sendMessage("FlipX set to " + FlipX);
-				
-			}
-			else if(args[0].equalsIgnoreCase("FlipY"))
-			{
-				if(args.length<2) 
-					FlipY=!FlipY;
+
+			} else if (args[0].equalsIgnoreCase("FlipY")) {
+				if (args.length < 2)
+					FlipY = !FlipY;
 				else
-					FlipY = (Boolean.parseBoolean(args[1]) || args[1].equalsIgnoreCase("yes"));
-					
-				
+					FlipY = (Boolean.parseBoolean(args[1]) || args[1]
+							.equalsIgnoreCase("yes"));
+
 				p.sendMessage("FlipY set to " + FlipY);
-			}
-			else if (args[0].equalsIgnoreCase("OffsetX"))
-			{
-				if(args.length<2) {
+			} else if (args[0].equalsIgnoreCase("OffsetX")) {
+				if (args.length < 2) {
 					p.sendMessage("PIXART: OffsetX currently " + OffsetX);
-					
+
 					return;
 				}
 				try {
-				OffsetX = Integer.parseInt(args[1]);
-				}
-				catch(NumberFormatException e)
-				{
+					OffsetX = Integer.parseInt(args[1]);
+				} catch (NumberFormatException e) {
 					p.sendMessage("invalid Value.");
-					
+
 				}
 				p.sendMessage("PIXART:X offset set to " + OffsetX);
-			}
-			else if (args[0].equalsIgnoreCase("OffsetY"))
-			{
-				if(args.length<2) {
+			} else if (args[0].equalsIgnoreCase("OffsetY")) {
+				if (args.length < 2) {
 					p.sendMessage("PIXART: OffsetY currently " + OffsetY);
-					
+
 					return;
 				}
 				try {
-				OffsetY = Integer.parseInt(args[1]);
-				}
-				catch(NumberFormatException e)
-				{
+					OffsetY = Integer.parseInt(args[1]);
+				} catch (NumberFormatException e) {
 					p.sendMessage("invalid Value.");
-					
+
 				}
 				p.sendMessage("PIXART:Y offset set to " + OffsetY);
-			}
-			else if (args[0].equalsIgnoreCase("OffsetZ"))
-			{
-				if(args.length<2) {
+			} else if (args[0].equalsIgnoreCase("OffsetZ")) {
+				if (args.length < 2) {
 					p.sendMessage("PIXART: OffsetZ currently " + OffsetZ);
-					
+
 					return;
 				}
 				try {
-				OffsetY = Integer.parseInt(args[1]);
-				}
-				catch(NumberFormatException e)
-				{
+					OffsetY = Integer.parseInt(args[1]);
+				} catch (NumberFormatException e) {
 					p.sendMessage("invalid Value.");
-					
+
 				}
 				p.sendMessage("PIXART:Z offset set to " + OffsetZ);
 			}
-			
-			
-			
+
 		}
 
 	}
@@ -346,30 +441,30 @@ public class PixArtCommand implements CommandExecutor {
 
 	}
 
-	private static Location getBlockPlacement(PixArtPlayerData papd, World mcworld,
-			Location origin, int pixelX, int pixelY,int ImageWidth,int ImageHeight) {
+	private static Location getBlockPlacement(PixArtPlayerData papd,
+			World mcworld, Location origin, int pixelX, int pixelY,
+			int ImageWidth, int ImageHeight) {
 		int X = 0, Y = 0, Z = 0;
 		// currently supported modes, XY, XZ, YX, YZ, ZX, ZY
 		// "AB" where the image X coord is translated to a world A coord and the
 		// image Y coord is translated to a World B coord
 		// I suspect this could be refactored...
-		
-		//check for "flips"...
-		
-		if(papd.FlipX)
-		{
-			pixelX = ImageWidth-pixelX;
-			
-		
+
+		// check for "flips"...
+
+		if (!papd.FlipX) {
+			// also reversed the flip meaning. nobody needs to know...
+			pixelX = ImageWidth - pixelX;
+
 		}
-		//changed: papd.FlipY now has a "reverse" meaning; flipped will actually be the upside down one...
-		if(!papd.FlipY)
-		{
-			
-			pixelY = ImageHeight-pixelY;
-			
+		// changed: papd.FlipY now has a "reverse" meaning; flipped will
+		// actually be the upside down one...
+		if (!papd.FlipY) {
+
+			pixelY = ImageHeight - pixelY;
+
 		}
-		
+
 		switch (papd.BuildOrientation) {
 
 		case Build_XY:
@@ -426,11 +521,15 @@ public class PixArtCommand implements CommandExecutor {
 		return mcworld.getBlockAt(X, Y, Z).getLocation();
 
 	}
+
 	/**
-	 * returns the total difference between the two Colors. (that is, the total of the absolute differences between
-	 * each component in the colours)
-	 * @param colorA First Colour
-	 * @param colorB Second Colour
+	 * returns the total difference between the two Colors. (that is, the total
+	 * of the absolute differences between each component in the colours)
+	 * 
+	 * @param colorA
+	 *            First Colour
+	 * @param colorB
+	 *            Second Colour
 	 * @return total difference of the components in each colour.
 	 */
 	private static int getcolordiff(Color colorA, Color colorB) {
@@ -441,11 +540,17 @@ public class PixArtCommand implements CommandExecutor {
 				+ Math.abs(colorB.getBlue() - colorA.getBlue());
 
 	}
+
 	/**
-	 * returns the nearest matching ColorEntryData to a given Color from an Array.
-	 * @param fromcolors Array of ColorEntryData[] objects
-	 * @param colorcheck Color to approximate.
-	 * @return the ColorEntryData object that most closely approximates the given color.
+	 * returns the nearest matching ColorEntryData to a given Color from an
+	 * Array.
+	 * 
+	 * @param fromcolors
+	 *            Array of ColorEntryData[] objects
+	 * @param colorcheck
+	 *            Color to approximate.
+	 * @return the ColorEntryData object that most closely approximates the
+	 *         given color.
 	 */
 	public static ColorEntryData getnearestcolor(ColorEntryData[] fromcolors,
 			Color colorcheck) {
@@ -463,8 +568,10 @@ public class PixArtCommand implements CommandExecutor {
 		return fromcolors[currminindex];
 
 	}
-//do we really need to javadoc this? simple overload that calls the above routine with the aggregate EntryColours[] array in 
-	//the PixArtPlayerData class...
+
+	// do we really need to javadoc this? simple overload that calls the above
+	// routine with the aggregate EntryColours[] array in
+	// the PixArtPlayerData class...
 	public static ColorEntryData getnearestcolor(PixArtPlayerData pixdata,
 			Color colorcheck) {
 		return getnearestcolor(pixdata.EntryColours, colorcheck);
@@ -479,12 +586,14 @@ public class PixArtCommand implements CommandExecutor {
 		 * } } return pixdata.EntryColours[currminindex];
 		 */
 	}
-/**
- * returns the PixArtPlayerData for the given player. If there is no entry in the Hashmap for that player,
- *  a new entry is created and returned.
- * @param p
- * @return
- */
+
+	/**
+	 * returns the PixArtPlayerData for the given player. If there is no entry
+	 * in the Hashmap for that player, a new entry is created and returned.
+	 * 
+	 * @param p
+	 * @return
+	 */
 	public PixArtPlayerData getPlayerPixArtData(Player p) {
 		System.out.println("GetPlayerPixArtData:" + p.getDisplayName());
 
@@ -500,12 +609,16 @@ public class PixArtCommand implements CommandExecutor {
 		return gotvalue;
 
 	}
-/**
- * acquires the total number in a players inventory of a specified Material.
- * @param inv PlayerInventory to check
- * @param checkfor Material to check for
- * @return
- */
+
+	/**
+	 * acquires the total number in a players inventory of a specified Material.
+	 * 
+	 * @param inv
+	 *            PlayerInventory to check
+	 * @param checkfor
+	 *            Material to check for
+	 * @return
+	 */
 	public int getTotalCount(PlayerInventory inv, Material checkfor) {
 		int totalamount = 0;
 		for (ItemStack loopstack : inv.all(checkfor).values()) {
@@ -516,189 +629,220 @@ public class PixArtCommand implements CommandExecutor {
 		return totalamount;
 
 	}
+
 	/**
-	 * converts a BlockID and Data to a string. (Currently just showing the BlockID and Data, but could be changed to
-	 * show more descriptive strings...)
-	 * @param BlockID BlockID of the material to retrieve a description for.
-	 * @param BlockData Data of the material to retrieve a description for.
+	 * converts a BlockID and Data to a string. (Currently just showing the
+	 * BlockID and Data, but could be changed to show more descriptive
+	 * strings...)
+	 * 
+	 * @param BlockID
+	 *            BlockID of the material to retrieve a description for.
+	 * @param BlockData
+	 *            Data of the material to retrieve a description for.
 	 * @return Description of the material.
 	 */
 	private String blockDataToString(int BlockID, int BlockData) {
 
-		return "ID:" + BlockID + " Data:" + BlockData;
+		String itemname = new ItemStack(BlockID,BlockData).getType().toString();
+		return "ID:" + BlockID + " Data:" + BlockData + "(" + itemname + ")";
 
 	}
+
 	/**
-	 * given a PlayerData class instance and a string, tries to load/convert that string into an
-	 * appropriate image. Applies permissions as well. returns null if file couldn't be loaded, an error occurs, or if permission is denied.
-	 * in the last case, shows a message to the player stating as such.
+	 * given a PlayerData class instance and a string, tries to load/convert
+	 * that string into an appropriate image. Applies permissions as well.
+	 * returns null if file couldn't be loaded, an error occurs, or if
+	 * permission is denied. in the last case, shows a message to the player
+	 * stating as such.
+	 * 
 	 * @param dataobj
 	 * @param pstrimage
 	 * @return
 	 */
-	public static BufferedImage loadImage(PixArtPlayerData dataobj, String pstrimage) {
-		
-		//first step: if they aren't allowed URLs or file references, only allow them to use mapped images.
-		String strimage=pstrimage;
-		if(strimage.startsWith("www."))
-		{
-			//prepend strimage...
+	public static BufferedImage loadImage(PixArtPlayerData dataobj,
+			String pstrimage) {
+
+		// first step: if they aren't allowed URLs or file references, only
+		// allow them to use mapped images.
+		String strimage = pstrimage;
+		if (strimage.startsWith("www.")) {
+			// prepend strimage...
 			strimage = "http://" + strimage;
-			
-			
+
 		}
-		
-		if(!dataobj.canuseURL && !dataobj.canusePath)
-		{
-			if(!PixArtPlugin.getsettings().preMappedImages.containsKey(pstrimage))
-			{
-				dataobj.pPlayer.sendMessage("You do not have permissions to use URL or File references.");
+
+		if (!dataobj.canuseURL && !dataobj.canusePath) {
+			if (!PixArtPlugin.getsettings().preMappedImages
+					.containsKey(pstrimage)) {
+				dataobj.pPlayer
+						.sendMessage("You do not have permissions to use URL or File references.");
 				return null;
-				
+
 			}
-			
-			
-		}
-		else if(!dataobj.canuseURL)
-		{
-			
-			try {URL geturl = new URL(strimage);
-				dataobj.pPlayer.sendMessage("BCPIXART:You do not have permission to use URLs");
-				
-			
+
+		} else if (!dataobj.canuseURL) {
+
+			try {
+				URL geturl = new URL(strimage);
+				dataobj.pPlayer
+						.sendMessage("BCPIXART:You do not have permission to use URLs");
+
+			} catch (MalformedURLException mue) {
+				// ignore... could be valid... mapped image, or file ref, or
+				// something.
+
 			}
-			catch(MalformedURLException mue)
-			{
-				//ignore... could be valid... mapped image, or file ref, or something.
-				
+
+		} else if (!dataobj.canusePath) {
+			if (new File(strimage).exists()) {
+				dataobj.pPlayer
+						.sendMessage("BCPIXART:you do not have permission to use Server File Paths.");
+
 			}
-			
-			
-			
-		}
-		else if(!dataobj.canusePath)
-		{
-			if(new File(strimage).exists())
-			{
-				dataobj.pPlayer.sendMessage("BCPIXART:you do not have permission to use Server File Paths.");
-				
-				
-			}
-			
-			
+
 		}
 		strimage = PixArtPlugin.getsettings().getmappedImage(strimage);
 		try {
-			
-			
-			
+
 			BufferedImage img = null;
 			URL url = new URL(strimage);
 			img = ImageIO.read(url);
-			
-			
-			
-			//scale it.
-			if(dataobj.scaleXPercent!=1 || dataobj.scaleYPercent!=1)
-				img = PixArtPlugin.toBufferedImage(img.getScaledInstance((int)((float)img.getWidth() + dataobj.scaleXPercent), (int)((float)img.getHeight() + dataobj.scaleYPercent),Image.SCALE_FAST));
-			
-			
+
+			// scale it.
+			if (dataobj.scaleXPercent != 1 || dataobj.scaleYPercent != 1)
+				img = PixArtPlugin
+						.toBufferedImage(img
+								.getScaledInstance(
+										(int) ((float) img.getWidth() + dataobj.scaleXPercent),
+										(int) ((float) img.getHeight() + dataobj.scaleYPercent),
+										Image.SCALE_FAST));
+
 			return img;
 		} catch (IOException e) {
 			dataobj.pPlayer.sendMessage("Error...");
 			System.out.println("Exception:" + e.getMessage());
 			return null;
 		}
-		
+
 	}
-	public void showcommandhelp(Player p,String[] args)
-	{
+
+	public void showcommandhelp(Player p, String[] args) {
 		String arg = args[0];
-		if(args[0].equalsIgnoreCase("build"))
-		{
-		p.sendMessage(ChatColor.GOLD+ "Build: builds a image.");
-		p.sendMessage(ChatColor.GOLD+ "syntax: /pixart build [image]");
-		p.sendMessage(ChatColor.GOLD+ "[image]: image to build. can be a URL, server file path reference, or ");
-		p.sendMessage(ChatColor.GOLD+"one of the mapped names in the mappingfile. Permissions or Op are required for anything");
-		p.sendMessage(ChatColor.GOLD+ "but the mapped reference names.");
-		}
-			
-		else if(args[0].equalsIgnoreCase("calc"))
-		{
-			p.sendMessage(ChatColor.GOLD+ "calc: calculates required resources for an image");
-			p.sendMessage(ChatColor.GOLD+ "syntax: /pixart calc <imagename>");
-			p.sendMessage(ChatColor.GOLD+ "[image]: image to calculate. can be a URL, server file path reference, or ");
-			p.sendMessage(ChatColor.GOLD+"one of the mapped names in the mappingfile. Permissions or Op are required for anything");
-			p.sendMessage(ChatColor.GOLD+"results of the calculation are shown. either as either text, or direct ID <damage> values");
-			p.sendMessage(ChatColor.GOLD+"brackets at the end will display the amount of each that you have in your inventory.");
+		if (args[0].equalsIgnoreCase("build")) {
+			p.sendMessage(ChatColor.GOLD + "Build: builds a image.");
+			p.sendMessage(ChatColor.GOLD + "syntax: /pixart build [image]");
+			p
+					.sendMessage(ChatColor.GOLD
+							+ "[image]: image to build. can be a URL, server file path reference, or " +
+							"one of the mapped names in the mappingfile. Permissions or Op are required for anything but those mapped names.");
 			
 		}
-		else if (args[0].equalsIgnoreCase("ScaleX")||args[0].equalsIgnoreCase("ScaleY"))
+
+		else if (args[0].equalsIgnoreCase("calc")) {
+			p.sendMessage(ChatColor.GOLD
+					+ "calc: calculates required resources for an image");
+			p.sendMessage(ChatColor.GOLD + "syntax: /pixart calc <imagename>");
+			p.sendMessage(ChatColor.GOLD
+					+ "[image]: image to calculate. can be a URL, server file path reference, or " +
+					"one of the mapped names in the mappingfile. Permissions or Op are required for anything but those mapped names.");
+	
+		} else if (args[0].equalsIgnoreCase("ScaleX")
+				|| args[0].equalsIgnoreCase("ScaleY")) {
+			p.sendMessage(ChatColor.GOLD
+					+ "ScaleX & ScaleY: changes scale factor of built image.");
+			
+			
+			p.sendMessage(ChatColor.GOLD
+							+ "syntax: /pixart Scale[X|Y] <value>");
+			p.sendMessage(ChatColor.GOLD
+							+ " changes scale for given pixel coordinate. if a negative & positive value is used"  
+							+ "then the negative value will be changed to match the correct aspect ratio for the other coordinate scale.");
+			
+				
+
+		} else if (args[0].equalsIgnoreCase("OffsetX")
+				|| args[0].equalsIgnoreCase("OffsetY")
+				|| args[0].equalsIgnoreCase("OffsetZ")) {
+			p.sendMessage(ChatColor.GOLD
+							+ "OffsetX & OffsetY: changes Offset values from player location");
+			p.sendMessage(ChatColor.GOLD
+					+ "syntax: /pixart Offset[X|Y|Z] <value> ");
+			p.sendMessage(ChatColor.GOLD
+					+ "changes offset for given coordinate (in blocks)");
+
+		} else if (args[0].equalsIgnoreCase("FlipX")
+				|| args[0].equalsIgnoreCase("FlipY")) {
+			p
+					.sendMessage(ChatColor.GOLD
+							+ "FlipX & FlipY: flips given coordinate in resulting built image.");
+			p.sendMessage(ChatColor.GOLD
+					+ "Syntax: /pixart Flip[X|Y] [true|false]");
+			p
+					.sendMessage(ChatColor.GOLD
+							+ "If no parameter value is given, specified coordinate will have it's flip value toggled.");
+
+		} else if (args[0].equalsIgnoreCase("mode")) {
+			p
+					.sendMessage(ChatColor.GOLD
+							+ "mode: changes how X,Y image pixels are mapped to 3-D world space");
+			p.sendMessage(ChatColor.GOLD + "syntax: /pixart mode <mode>");
+			p.sendMessage(ChatColor.GOLD
+					+ "where <mode> is one of XY,XZ, YX,YZ,ZX,ZY.");
+			p
+					.sendMessage(ChatColor.GOLD
+							+ "the X Coordinate of the image is mapped to the first coordinate in the pair; the Y coordinate to the second.");
+			p
+					.sendMessage(ChatColor.GOLD
+							+ "example: XZ will map the image as horizontal, with X in the image being X in the world and Y in the image being Z.");
+
+		} 
+		else if(args[0].equalsIgnoreCase("viewmap"))
 		{
-			p.sendMessage(ChatColor.GOLD + "ScaleX & ScaleY: changes scale factor of built image.");
-			p.sendMessage(ChatColor.GOLD + "syntax: /pixart Scale[X|Y] <value>");
-			p.sendMessage(ChatColor.GOLD + " changes scale for given pixel coordinate. if a negative & positive value is used");
-			p.sendMessage(ChatColor.GOLD + "then the negative value will be changed to match the correct aspect ratio for the other coordinate scale.");
+		//viewmap
+			p.sendMessage(ChatColor.GOLD + "viewmap: views current color->block mappings.");
+			p.sendMessage(ChatColor.GOLD + "Syntax: /pixart viewmap");
 			
 			
+			
+		
 		}
-		else if(args[0].equalsIgnoreCase("OffsetX")||args[0].equalsIgnoreCase("OffsetY") || args[0].equalsIgnoreCase("OffsetZ"))
-		{
-			p.sendMessage(ChatColor.GOLD + "OffsetX & OffsetY: changes Offset values from player location");
-			p.sendMessage(ChatColor.GOLD + "syntax: /pixart Offset[X|Y|Z] <value> ");
-			p.sendMessage(ChatColor.GOLD + "changes offset for given coordinate (in blocks)");
-			
-			
-			
-		}
-		else if(args[0].equalsIgnoreCase("FlipX") || args[0].equalsIgnoreCase("FlipY"))
-		{
-			p.sendMessage(ChatColor.GOLD + "FlipX & FlipY: flips given coordinate in resulting built image.");
-			p.sendMessage(ChatColor.GOLD + "Syntax: /pixart Flip[X|Y] [true|false]");
-			p.sendMessage(ChatColor.GOLD+"If no parameter value is given, specified coordinate will have it's flip value toggled.");
-			
-			
-		}
-		else if(args[0].equalsIgnoreCase("mode"))
-		{
-			p.sendMessage(ChatColor.GOLD+"mode: changes how X,Y image pixels are mapped to 3-D world space");
-			p.sendMessage(ChatColor.GOLD+"syntax: /pixart mode <mode>");
-			p.sendMessage(ChatColor.GOLD+"where <mode> is one of XY,XZ, YX,YZ,ZX,ZY.");
-			p.sendMessage(ChatColor.GOLD+"the X Coordinate of the image is mapped to the first coordinate in the pair; the Y coordinate to the second.");
-			p.sendMessage(ChatColor.GOLD+"example: XZ will map the image as horizontal, with X in the image being X in the world and Y in the image being Z.");
-			
-			
-		}
-		else if (args[0].equalsIgnoreCase("addcolordata"))
-		{
-			///pixart addcolordata R G B ID DAMAGE
-			p.sendMessage(ChatColor.GOLD+"addcolordata: adds a colour mapping from a specified colour to a material");
-			p.sendMessage(ChatColor.GOLD+"Syntax: /pixart addcolordata " + ChatColor.RED + "<R>" + 
-					ChatColor.GREEN + "<G>" + ChatColor.BLUE + "<B>" + ChatColor.GOLD +  "<ID> <DAMAGE>");
-			p.sendMessage(ChatColor.GOLD+ " R,G,B : Colour components of colour to match as the given material.");
+		
+		else if (args[0].equalsIgnoreCase("add")) {
+			// /pixart addcolordata R G B ID DAMAGE
+			p
+					.sendMessage(ChatColor.GOLD
+							+ "add: adds a colour mapping from a specified colour to a material");
+			p
+					.sendMessage(ChatColor.GOLD
+							+ "Syntax: /pixart add " + ChatColor.RED
+							+ "<R>" + ChatColor.GREEN + "<G>" + ChatColor.BLUE
+							+ "<B>" + ChatColor.GOLD + "<ID> <DAMAGE>");
+			p
+					.sendMessage(ChatColor.GOLD
+							+ " R,G,B : Colour components of colour to match as the given material.");
 			p.sendMessage(ChatColor.GOLD + "ID, DAMAGE: Material to map.");
-			p.sendMessage(ChatColor.GOLD+" Example: /pixart addcolordata 255 255 255 35 0");
-			p.sendMessage(ChatColor.GOLD+"would map white (RGB 255,255,255) to white wool (ID 35, damage 0)");
-			
-			
-			
+			p.sendMessage(ChatColor.GOLD
+					+ " Example: /pixart addcolordata 255 255 255 35 0");
+			p
+					.sendMessage(ChatColor.GOLD
+							+ "would map white (RGB 255,255,255) to white wool (ID 35, damage 0)");
+
 		}
-		
-		
+
 	}
-	public void showcommandhelp(Player p)
-	{
-		//shows the default help to that player.
+
+	public void showcommandhelp(Player p) {
+		// shows the default help to that player.
 		p.sendMessage(PixArtPlugin.versionheader);
 		p.sendMessage("Pixel art creation tool");
 		p.sendMessage("Syntax:");
 		p.sendMessage("/pixart [option] [arguments]");
-		p.sendMessage("supported Options- build, calc, ScaleX,ScaleY,FlipX,FlipY,Mode");
+		p
+				.sendMessage("supported Options- Build, Add, Calc, ScaleX,ScaleY,FlipX,FlipY,Mode,Resuse");
 		p.sendMessage("use /pixart [option] help for help with each.");
-		
-		
-		
+
 	}
+
 	@Override
 	public boolean onCommand(CommandSender sender, Command cmd,
 			String commandLabel, String[] args) {
@@ -715,25 +859,28 @@ public class PixArtCommand implements CommandExecutor {
 			PixArtPlayerData papa = getPlayerPixArtData(p);
 			String scmd = commandLabel.toLowerCase();
 			Location startpos = p.getLocation();
-			
-			startpos = p.getWorld().getBlockAt(startpos.getBlockX()+papa.OffsetX,
+
+			startpos = p.getWorld().getBlockAt(
+					startpos.getBlockX() + papa.OffsetX,
 					startpos.getBlockY() + papa.OffsetY,
 					startpos.getBlockZ() + papa.OffsetZ).getLocation();
-			
-			
+
 			System.out.println(scmd);
-			
+			BufferedImage img = null;
 			if (scmd.equalsIgnoreCase("pixart")) {
-				if(args.length==0)
+				if (args.length == 0)
+				{
 					showcommandhelp(p);
-				else if (args[args.length-1].equalsIgnoreCase("help")) 
-					{
-					showcommandhelp(p,args);
 					return true;
-					}
-					
-				BufferedImage img = null;
-				if (args[0].equalsIgnoreCase("calc")) {
+				}
+				else if (args[args.length - 1].equalsIgnoreCase("help")) {
+					showcommandhelp(p, args);
+					return true;
+				}
+
+				
+	
+				else if (args[0].equalsIgnoreCase("calc")) {
 					if (args.length < 2)
 						p.sendMessage("insufficient arguments.");
 
@@ -753,18 +900,16 @@ public class PixArtCommand implements CommandExecutor {
 						for (int i = 0; i < rescounts.length; i++) {
 							if (rescounts[i] != 0) {
 
-								p
-										.sendMessage(rescounts[i]
-												+ " of item "
-												+ blockDataToString(
-														papa.EntryColours[i].BlockID,
-														papa.EntryColours[i].BlockData)
-												+ "("
-												+ rescalc
-														.getTotalCount(
-																p,
-																papa.EntryColours[i].BlockID,
-																papa.EntryColours[i].BlockData) + ")");
+								p.sendMessage(rescounts[i]
+										+ " of item "
+										+ blockDataToString(
+												papa.EntryColours[i].BlockID,
+												papa.EntryColours[i].BlockData)
+										+ "("
+										+ rescalc.getTotalCount(p,
+												papa.EntryColours[i].BlockID,
+												papa.EntryColours[i].BlockData)
+										+ ")");
 
 							}
 
@@ -772,8 +917,28 @@ public class PixArtCommand implements CommandExecutor {
 
 					}
 				}
-				
-				
+				else if(args[0].equalsIgnoreCase("viewmap"))
+				{
+					//view current player color mappings...
+					p.sendMessage("Color mappings for player " + p.getDisplayName() + ":");
+					for(ColorEntryData loopentry:papa.EntryColours){
+						
+						//format: <R>,<G>,<B>=>(BlockdatatoString)
+						
+						int r=loopentry.colorvalue.getRed();int g=loopentry.colorvalue.getGreen();int b=loopentry.colorvalue.getBlue();
+						p.sendMessage(ChatColor.RED + String.valueOf(r) + "," + 
+									ChatColor.GREEN + String.valueOf(g) + "," +
+									ChatColor.BLUE + String.valueOf(b) + " => " + 
+									blockDataToString(loopentry.BlockID,loopentry.BlockData));
+						
+						
+						
+						
+					}
+					
+					
+					
+				}
 				else if (args[0].equalsIgnoreCase("resuse")) {
 					// set a "property"...
 					// args[1] will be the actual property name. currently
@@ -796,13 +961,10 @@ public class PixArtCommand implements CommandExecutor {
 
 					} else {
 						p
-						.sendMessage("You do not have setResourceUse permissions in this world.");
+								.sendMessage("You do not have setResourceUse permissions in this world.");
 					}
 
-
-
-				}
-				else if (args[0].equalsIgnoreCase("mode")) {
+				} else if (args[0].equalsIgnoreCase("mode")) {
 					System.out.println("mode");
 					// modes: //pixart mode XZ, pixart mode YZ, etc
 
@@ -820,11 +982,11 @@ public class PixArtCommand implements CommandExecutor {
 
 					setBuildOrientation(papa, bocfromstring(args[1]));
 
-				} else if (args[0].equalsIgnoreCase("addcolordata")) {
+				} else if (args[0].equalsIgnoreCase("add")) {
 					// /pixart addcolordata R G B ID DAMAGE
 					if (args.length < 6) {
 						p.sendMessage("insufficient arguments.");
-						p.sendMessage("/pixart addcolordata R G B ID DAMAGE");
+						p.sendMessage("/pixart add R G B ID DAMAGE");
 						// 1=R,2=G,3=B,4=ID,5=DAMAGE...
 
 						int R = Integer.parseInt(args[1]);
@@ -846,6 +1008,22 @@ public class PixArtCommand implements CommandExecutor {
 								+ G + "," + B);
 					}
 
+				} else if (args[0].equalsIgnoreCase("undo")) {
+					// UNDO;
+					// FIRST: pop the rollback data for last item...
+					RollbackData rbd = papa.UndoStack.pop();
+					// now, find the thread and abort it...
+					Thread it = rbd.InitialThread;
+					if (it != Thread.currentThread()) {
+						// abort it.
+						it.interrupt();
+
+						// remove it from genthreads..
+						if (papa.genthreads.contains(it))
+							papa.genthreads.remove(it);
+					}
+					rbd.DoRollback(rbd.getWorld());
+
 				}
 				// support pixart stuff:
 				// /pixart http://bc-programming.com/images/megaman.png
@@ -854,17 +1032,13 @@ public class PixArtCommand implements CommandExecutor {
 					// URL url = new URL(args[1]);
 					if (args.length == 1 || args[1] == "")
 						args[1] = "http://www.bc-programming.com/images/mm/megaman.png";
-					//renderImageToBlocks(args[1], p, papa, startpos,rescalc);
-					renderImageToBlocksthreaded(args[1], p, papa, startpos,rescalc);
+					// renderImageToBlocks(args[1], p, papa, startpos,rescalc);
+					renderImageToBlocksthreaded(args[1], p, papa, startpos,
+							rescalc);
 
-				}
-				else
-				{
-					papa.processArguments(p,args);
-					
-					
-					
-					
+				} else {
+					papa.processArguments(p, args);
+
 				}
 
 			}
@@ -873,18 +1047,26 @@ public class PixArtCommand implements CommandExecutor {
 
 		return false;
 	}
-	
-	//private Thread spawnedthread;
-	public void renderImageToBlocksthreaded(String imagestr,Player p, PixArtPlayerData papa,Location startpos,ResourceCalculator resq)
-	{
-		ThreadWork workerthread = new ThreadWork(imagestr,p,(PixArtPlayerData) papa.clone(),startpos,resq);
+
+	// private Thread spawnedthread;
+	public void renderImageToBlocksthreaded(String imagestr, Player p,
+			PixArtPlayerData papa, Location startpos, ResourceCalculator resq) {
+
+		if (papa.genthreads.size() >= papa.maxconcurrentdraws) {
+			p
+					.sendMessage("PIXART: max concurrent draws reached. Wait until active draws complete, or cancel them.");
+			return;
+		}
+
+		ThreadWork workerthread = new ThreadWork(imagestr, p,
+				(PixArtPlayerData) papa.clone(), startpos, resq);
 		Thread spawnedthread = new Thread(workerthread);
+		// add it to papa...
+		papa.genthreads.add(spawnedthread);
 		spawnedthread.start();
-			
-		
-		
-		
+
 	}
+	
 	public static void renderImageToBlocks(String imagestr, Player p,
 			PixArtPlayerData papa, Location startpos,ResourceCalculator rescalc) {
 		BufferedImage img;
@@ -895,16 +1077,19 @@ public class PixArtCommand implements CommandExecutor {
 
 		if (img != null) {
 
-			// TODO: resize the image based on values set in the
-			// PixArtPlayerData class...
-
-			// based on location of player.
-			// now iterate through the pixels in the image...
-
-			// First, if resource use is enabled, make sure they
+			
+			
+			//first, make sure the image doesn't exceed the maximum size in the config.
+			
+			
+			
+			// Next, if resource use is enabled, make sure they
 			// have sufficient resources, and if so, deplete those
 			// resources.
-
+			
+			
+			
+			
 			if (papa.usePlayerResources) {
 				if (!rescalc.hasResourcesDirect(p,
 						papa.EntryColours, img)) {
@@ -913,14 +1098,16 @@ public class PixArtCommand implements CommandExecutor {
 					debugmessage("Player "
 							+ p.getDisplayName()
 							+ " tried to create image with insufficient resources.");
-
+					return;
 				} else {
 					// deplete the player resources <now> rather
 					// then after building it. although debatably it
 					// could be an option.
 					debugmessage("Player has sufficient resources-");
-					rescalc.depleteResources(p, papa.EntryColours,
-							img);
+					
+					//testing change: will deplete while being built...
+					//rescalc.depleteResources(p, papa.EntryColours,
+					//		img);
 				}
 
 			} else {
@@ -933,8 +1120,13 @@ public class PixArtCommand implements CommandExecutor {
 			int py = startpos.getBlockY();
 			int pz = startpos.getBlockZ();
 			int totalblocks=0;
+			
+			RollbackData rbd = new RollbackData();
+			//add it to the players list of undoables...
+			papa.UndoStack.add(rbd);
 			debugmessage("player at position X:" + px + " Y:"
 					+ py + " Z:" + pz);
+			try {
 			for (int xpixel = 0; xpixel < img.getWidth(); xpixel++) {
 				// int xpix = xpixel+px;
 				for (int ypixel = 0; ypixel < img.getHeight(); ypixel++) {
@@ -969,7 +1161,7 @@ public class PixArtCommand implements CommandExecutor {
 					// Block blockpos =
 					// usew.getBlockAt(xpix,p.getLocation().getBlockY(),ypix
 					// );
-
+					
 					Block blockpos = usew.getBlockAt(usespot);
 
 					// System.out.println("setting material to " +
@@ -978,10 +1170,19 @@ public class PixArtCommand implements CommandExecutor {
 					// Color(colourvalue));
 					// System.out.println("colorvalue=" +
 					// colorvalue);
+					
+					
+					
+					
 					if (alpha > 0) {
+						
+						//add the rollbackitem
+						
+						rbd.AddRollbackItem(papa,blockpos);
+						
 						setblocktocolor(papa, blockpos, new Color(
-								colourvalue));
-						sleepEx(PixArtPlugin.getsettings().blocksleep);
+								colourvalue),rescalc);
+						Thread.sleep(PixArtPlugin.getsettings().blocksleep);
 						
 					} else {
 						//TODO: make configurable?
@@ -998,56 +1199,90 @@ public class PixArtCommand implements CommandExecutor {
 					// Color(colourvalue));
 					// blockpos.setType(usematerial);
 
-				}
-				sleepEx(PixArtPlugin.getsettings().blockrowdelay);
+				} //for ypixel...
+				Thread.sleep(PixArtPlugin.getsettings().blockrowdelay);
+			
+		
+			
+		}}
+			catch(InterruptedException ie)
+			{
+				//the thread was interrupted- close down... (this is usually done when a player undoes or cancels a drawing)
+				Thread.currentThread().interrupt();
 			}
-
-		}
+			
+			
+			finally{
+			papa.genthreads.remove(Thread.currentThread());
+			}
+		} //img!=null
 	}
-	private static void sleepEx(long ms)
-	{
+
+	private static void sleepEx(long ms) {
 		try {
-			//sleep every single block for the given amount of time. defaults to 500 ms.
+			// sleep every single block for the given amount of time. defaults
+			// to 500 ms.
 			Thread.sleep(ms);
 		} catch (InterruptedException e) {
-			//don't care. bloody checked exceptions...
+			// don't care. bloody checked exceptions...
 		}
-		
+
 	}
+
 	private static void setblocktocolor(PixArtPlayerData pd, Block setblock,
-			Color tocolor) {
-		boolean exceptionoccured=true;
-		int exceptioncount=0;
+			Color tocolor,ResourceCalculator rescalc) {
+		boolean exceptionoccured = true;
+		int exceptioncount = 0;
+		World blockworld = setblock.getWorld();
+		Chunk blockchunk = setblock.getChunk();
+		if(!blockworld.isChunkLoaded(blockchunk))
+			blockworld.loadChunk(blockchunk);
+		if (!setblock.getType().equals(Material.AIR))
+			return; // ignore attempts to replace anything but air...
+		// HACK ALERT: was encountering a NullPointerException deep beneath is
+		// within setTypeIdAndData (not my fault I swear).
+		// I suspect it's a race condition. the hack is that it tries 5 times,
+		// and sleeps for 100 milliseconds each
+		// time it fails. After 5 times it just gives up and pretends all went
+		// well to prevent
+		// hurting the feelings of the calling routine.
+		boolean successful=false;
+		while (exceptionoccured && exceptioncount < 5) {
+			try {
+				exceptionoccured = false;
+				ColorEntryData sd = getnearestcolor(pd, tocolor);
+				setblock.setTypeIdAndData(sd.BlockID, (byte) sd.BlockData,
+						false);
+				successful=true;
+			} catch (Exception e) {
+				exceptionoccured = true;
+				exceptioncount++;
+				try {
+					Thread.sleep(50 * exceptioncount);
+				} catch (InterruptedException exx) {
+					// ignore...
+
+				}
+
+				}
+			}
 		
 		
-		
-		if(setblock.getType().equals(Material.BEDROCK))
-			return; //ignore attempts to replace bedrock...
-		//HACK ALERT: was encountering a NullPointerException deep beneath is within setTypeIdAndData (not my fault I swear).
-		//I suspect it's a race condition. the hack is that it tries 5 times, and sleeps for 100 milliseconds each
-		//time it fails. After 5 times it just gives up and pretends all went well to prevent 
-		//hurting the feelings of the calling routine.
-		while(exceptionoccured && exceptioncount < 5)
+		//if we were successful....
+		if(successful)
 		{
-        try {
-        	exceptionoccured=false;
-		ColorEntryData sd = getnearestcolor(pd, tocolor);
-		setblock.setTypeIdAndData(sd.BlockID, (byte) sd.BlockData, false);
-        }
-        catch(NullPointerException e)
-        {
-        	exceptionoccured=true;
-        	exceptioncount++;
-        	try {
-        	Thread.sleep(100*exceptioncount);
-        	}
-        	catch(InterruptedException exx)
-        	{
-        		//ignore...
-        		
-        	}
-        }
+			if(pd.usePlayerResources)
+			{
+				ColorEntryData sdp = getnearestcolor(pd, tocolor);
+			rescalc.depleteResource(pd.pPlayer, sdp.BlockID,sdp.BlockData,1);
+			}
+			else
+			{
+				debugmessage("PIXART:WARNING- Failed to set block " + setblock.getLocation().toString());
+				
+			}
 		}
+	
 	}
 
 	/**
@@ -1094,6 +1329,5 @@ public class PixArtCommand implements CommandExecutor {
 				+ " for player " + p.getDisplayName());
 
 	}
-	
-	
+
 }

@@ -48,6 +48,8 @@ public class config implements java.io.Serializable {
 	public String mappingfile="";
 	public long blocksleep=25;
 	public long blockrowdelay=10;
+	public int maxconcurrentdraws=2;
+	public int MaxImageWidth=256,MaxImageHeight=256;
 	public Hashtable<String,String> preMappedImages;
 	
 	public String getmappedImage(String strparam)
@@ -262,6 +264,9 @@ public class config implements java.io.Serializable {
 		mappingfile=getValue("mappingfile",defmapfile);
 		blocksleep = getLong("blocksleep",25);
 		blockrowdelay=getLong("blockrowdelay",10);
+		maxconcurrentdraws=getInt("maxconcurrentdraws",2);
+		MaxImageWidth = getInt("MaxImageWidth",0);
+		MaxImageHeight = getInt("MaxImageHeight",0);
 	}
 	public static void recreatemappingfile()
 	{
@@ -311,12 +316,6 @@ catch(IOException e)
 	    		out.write("#BCPixArt Configuration\r\n");
 	    		out.write("#\r\n");
 	    		out.write("#debug messages... probably best to leave this disabled....\r\n");
-	    		out.write("debug=true\r\n");
-	    		out.write("#Threading: When enabled(HIGHLY RECOMMENDED), building of the pixelart will be performed in a separate thread\r\n");
-	    		out.write("#Threading=true\r\n");
-	    		out.write("#if disabled, the main thread will be used. Note that if threading is disabled, trying to build pixel art from");
-	    		out.write("#large images is very likely to crash the server. Also, the entire process of building the image");
-	    		out.write("#will be likely to cause the server to become unresponsive.");
 	    		out.write("#mappingfile: text file containing list of name value pairs to allow shorter entry to the /pixart build command\r\n");
 	    		out.write("#if not found, a new file will be created.");
 	    		out.write("mappingfile=" + defmapfile + "\r\n");
@@ -325,6 +324,12 @@ catch(IOException e)
 	    		out.write("blocksleep=25\r\n");
 	    		out.write("#blockrowdelay: additional number of ms to delay after completing a row/column.\r\n");
 	    		out.write("blockrowdelay=10\r\n");
+	    		out.write("#max concurrent draws: maximum number of concurrent drawing operations each player can be doing.\r\n");
+	    		out.write("maxconcurrentdraws=2\r\n");
+	    		out.write("#maximagewidth and maximageheight: maximum image size.\r\n");
+	    		out.write("maximagewidth=256\r\n");
+	    		out.write("maximageheight=256\r\n");
+	    		
 	    				
 	    				
 	    		
