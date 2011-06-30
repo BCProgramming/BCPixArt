@@ -51,14 +51,10 @@ setting these to true will cause the loaded image to be flipped along that axis 
 
 /pixart add R G B ID DAMAGE
 
-Adds an entry to the player specific color mappings table. This is saved when the plugin is disabled, and
-loaded when a player interacts with BCPixArt.
+Adds an entry to the player specific color mappings table.
 
 
 
-/pixart mapreset
-
-Resets your (per-player) colour mapping data.
 
 
 

@@ -51,14 +51,8 @@ setting these to true will cause the loaded image to be flipped along that axis 
 
 /pixart add R G B ID DAMAGE
 
-Adds an entry to the player specific color mappings table. This is saved when the plugin is disabled, and
-loaded when a player interacts with BCPixArt.
+Adds an entry to the player specific color mappings table.
 
-
-
-/pixart mapreset
-
-Resets your (per-player) colour mapping data.
 
 
 
@@ -73,6 +67,3 @@ Permissions Nodes:
 
 BCPixArt.Build - to allow use of /pixart build. defaults to ops if Permissions plugin is not loaded.
 BCPixArt.Calc - to allow use of /pixart calc. Defaults to everybody if permissions plugin is not loaded.
-BCPixArt.canusePath - allows commands including a image name/reference to use server paths.
-BCPixArt.canuseURL - allows use of URLs. recommended this only be given to trusted players; the server can be
-forced to crash or lag by loading unnecessarily large files!

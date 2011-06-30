@@ -88,6 +88,11 @@ public class PixArtPlugin extends JavaPlugin {
 	@Override
 	public void onDisable() {
 		// TODO Auto-generated method stub
+		
+		//Save 
+		PicArtCListener.DoSave();
+		
+		
 		System.out.print("BCPixArt Disabled");
 	}
 	
@@ -250,7 +255,7 @@ public class PixArtPlugin extends JavaPlugin {
 	         
 	         }
 	         */
-	         
+	         PicArtCListener.DoReload();
 	         PluginCommand batchcommand = this.getCommand("pixart");
 	         batchcommand.setExecutor(PicArtCListener);
 	       
