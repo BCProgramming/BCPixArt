@@ -255,7 +255,7 @@ public class PixArtPlugin extends JavaPlugin {
 	         
 	         }
 	         */
-	         PicArtCListener.DoReload();
+	         //PicArtCListener.Load();
 	         PluginCommand batchcommand = this.getCommand("pixart");
 	         batchcommand.setExecutor(PicArtCListener);
 	       
